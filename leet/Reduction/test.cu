@@ -7,7 +7,11 @@
 
 #include <cuda_runtime.h>
 
-#include "solve_float4_2stage.cu"
+// 默认测试 optimal.cu，可用 -DSOLVE_FILE='"simple.cu"' 测试简单版。
+#ifndef SOLVE_FILE
+#define SOLVE_FILE "optimal.cu"
+#endif
+#include SOLVE_FILE
 
 #define CHECK_CUDA(call)                                                       \
     do {                                                                       \

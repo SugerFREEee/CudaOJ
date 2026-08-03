@@ -1,6 +1,7 @@
-
 #include <cuda_runtime.h>
-
+#define MAX_BLOCK_NUM 32
+// 简单版：单 kernel。grid-stride 求局部和 -> warp 归约 -> block 归约 -> atomicAdd 汇总。
+// 面试手撕首选：一个 kernel 讲清楚 warp shuffle + block 两级归约 + 跨 block 合并。
 __device__ float warpReduce(float val) {
     for (int offset = 16; offset > 0; offset >>= 1) {
         val += __shfl_down_sync(0xFFFFFFFF, val, offset);
@@ -20,30 +21,21 @@ __global__ void reduction(const float* input, float* output, int N) {
     int stride = blockDim.x * gridDim.x;
 
     float val = 0.0f;
-
-    // 多 block 正确复用：每个线程负责 grid-stride 上的一串元素
     for (int i = globalIdx; i < N; i += stride) {
         val += input[i];
     }
 
-    // 第一级：每个 warp 内部归约
     val = warpReduce(val);
-
-    // 每个 warp 的 lane 0 写出该 warp 的 partial sum
     if (laneIdx == 0) {
         warp_sums[warpIdx] = val;
     }
-
     __syncthreads();
 
-    // 第二级：让 warp 0 归约所有 warp 的 partial sum
     val = (tid < numWarps) ? warp_sums[tid] : 0.0f;
-
     if (warpIdx == 0) {
         val = warpReduce(val);
     }
 
-    // 每个 block 只产生一个 block sum，用 atomicAdd 合并到 output[0]
     if (tid == 0) {
         atomicAdd(output, val);
     }
@@ -52,7 +44,7 @@ __global__ void reduction(const float* input, float* output, int N) {
 extern "C" void solve(const float *input, float *output, int N) {
     int threadsPerBlock = 256;
     int blockNum = (N + threadsPerBlock - 1) / threadsPerBlock;
-    blockNum = blockNum < 32 ? blockNum : 32;
+    blockNum = blockNum < MAX_BLOCK_NUM ? blockNum : MAX_BLOCK_NUM;
 
     cudaMemset(output, 0, sizeof(float));
     reduction<<<blockNum, threadsPerBlock>>>(input, output, N);

@@ -4,16 +4,16 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 N="${1:-16777216}"
 
-nvcc -O3 -DSOLVE_FILE='"solve_float4.cu"' \
+nvcc -O3 -DSOLVE_FILE='"simple.cu"' \
     "${SCRIPT_DIR}/benchmark_reduction.cu" \
-    -o "${SCRIPT_DIR}/benchmark_float4_atomic"
+    -o "${SCRIPT_DIR}/benchmark_simple"
 
-nvcc -O3 -DSOLVE_FILE='"solve_float4_2stage.cu"' \
+nvcc -O3 -DSOLVE_FILE='"optimal.cu"' \
     "${SCRIPT_DIR}/benchmark_reduction.cu" \
-    -o "${SCRIPT_DIR}/benchmark_float4_2stage"
+    -o "${SCRIPT_DIR}/benchmark_optimal"
 
-printf '\n===== float4 + atomicAdd =====\n'
-"${SCRIPT_DIR}/benchmark_float4_atomic" "${N}"
+printf '\n===== simple (single kernel + atomicAdd) =====\n'
+"${SCRIPT_DIR}/benchmark_simple" "${N}"
 
-printf '\n===== float4 + two-stage reduction =====\n'
-"${SCRIPT_DIR}/benchmark_float4_2stage" "${N}"
+printf '\n===== optimal (float4 + two-stage) =====\n'
+"${SCRIPT_DIR}/benchmark_optimal" "${N}"
